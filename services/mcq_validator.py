@@ -12,6 +12,26 @@ _STOP_WORDS = {
     'but', 'if', 'then', 'so', 'not', 'no', 'nor',
 }
 
+# Matches hints that are bare textbook citations with no conceptual content.
+_TEXTBOOK_REF_RE = re.compile(
+    r"""
+    \brefer\s+to\b                                          # "Refer to ..."
+    | \b(theorem|lemma|corollary|axiom|example|exercise
+         |section|chapter|figure|table|page|formula
+         |property|rule|definition)\s+\d+                  # "Theorem 6.6", "Example 3"
+    | \bsee\s+(theorem|lemma|example|section|chapter
+               |figure|table|page|exercise)\b              # "See Theorem", "See page"
+    | \bcheck\s+(the\s+)?(textbook|book|notes
+                  |section|chapter)\b                      # "Check the textbook"
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+
+
+def hint_is_textbook_reference(hint: str) -> bool:
+    """Return True if the hint is a bare textbook/theorem citation with no conceptual content."""
+    return bool(_TEXTBOOK_REF_RE.search(hint))
+
 
 
 def normalize_text(text: str) -> str:
@@ -70,6 +90,14 @@ def build_fix_instruction(reason: str, q: dict) -> str:
         return (
             "Rewrite only the hint field so it does not contain any word from the correct answer. "
             "Guide the student's thinking without naming or implying the correct option. "
+            "Keep everything else identical."
+        )
+    if reason == "Hint is a bare textbook reference":
+        return (
+            "Rewrite only the hint field. The current hint is a bare textbook citation "
+            "(e.g. 'Refer to Theorem 6.6') which is useless without the book. "
+            "Replace it with a self-contained hint that names and briefly explains the "
+            "relevant concept or principle in plain language, without giving away the answer. "
             "Keep everything else identical."
         )
     if reason == "No correct answer marked":
@@ -178,6 +206,8 @@ def _check_question(q: dict, seen_hashes: set[str]) -> str | None:
             correct_texts = [o.get('option_text', '') for o in correct_options]
             if hint_leaks_answer(hint, correct_texts):
                 return "Hint reveals the correct answer"
+            if hint_is_textbook_reference(hint):
+                return "Hint is a bare textbook reference"
 
     return None
 

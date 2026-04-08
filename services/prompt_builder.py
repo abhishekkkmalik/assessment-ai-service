@@ -44,14 +44,16 @@ Hint quality rules (ALL must be satisfied — no exceptions):
   1. Must guide the student's thinking process, not give away the answer.
   2. Must NEVER contain any word from the correct answer option text (after removing stop words).
   3. Must NEVER eliminate wrong options (do not hint "it is NOT A or B").
-  4. Should reference a concept, principle, or process rather than the answer itself.
+  4. Must reference a concept, principle, or process in plain language — briefly explain the idea, do not just name it.
+  5. Must NEVER be a bare textbook citation such as "Refer to Theorem 6.6", "See Example 3", "Check Section 4.2", or "Refer to page 45" — the student may not have the book open.
+  6. Must be self-contained: a student should understand the hint without any external materials.
 """
 
 _SELF_VERIFICATION = """
 Self-verification (do this before submitting):
   For each question, verify:
   ✓ Every claim is supported by the provided chapter text
-  ✓ Hint passes all hint rules above (no answer tokens)
+  ✓ Hint passes all hint rules above (no answer tokens, not a bare textbook citation)
   ✓ All distractors are plausible but clearly wrong to a knowledgeable student
   ✓ Bloom's category matches the stem pattern for the difficulty level
   ✓ No two questions test the same specific fact or concept
