@@ -12,24 +12,22 @@ _STOP_WORDS = {
     'but', 'if', 'then', 'so', 'not', 'no', 'nor',
 }
 
-# Matches hints that are bare textbook citations with no conceptual content.
+# Matches numbered textbook citations that are never valid as hints
+# (e.g. "Theorem 6.6", "Example 3", "Section 4.2").
+# Deliberately narrow — only numbered references are flagged.
+# Generic phrases like "refer to the concept of..." or "apply the theorem" are left alone.
 _TEXTBOOK_REF_RE = re.compile(
-    r"""
-    \brefer\s+to\b                                          # "Refer to ..."
-    | \b(theorem|lemma|corollary|axiom|example|exercise
-         |section|chapter|figure|table|page|formula
-         |property|rule|definition)\s+\d+                  # "Theorem 6.6", "Example 3"
-    | \bsee\s+(theorem|lemma|example|section|chapter
-               |figure|table|page|exercise)\b              # "See Theorem", "See page"
-    | \bcheck\s+(the\s+)?(textbook|book|notes
-                  |section|chapter)\b                      # "Check the textbook"
-    """,
-    re.IGNORECASE | re.VERBOSE,
+    r'\b(theorem|lemma|corollary|example|exercise|section|chapter|figure|page|formula|definition)\s+\d+',
+    re.IGNORECASE,
 )
 
 
 def hint_is_textbook_reference(hint: str) -> bool:
-    """Return True if the hint is a bare textbook/theorem citation with no conceptual content."""
+    """Return True if the hint is a numbered textbook citation (e.g. 'Theorem 6.6').
+
+    Only flags unambiguously bad patterns — numbered references that are never
+    useful without the physical book. Generic conceptual phrases are not affected.
+    """
     return bool(_TEXTBOOK_REF_RE.search(hint))
 
 
