@@ -15,14 +15,26 @@ _STOP_WORDS = {
 
 
 def normalize_text(text: str) -> str:
+    """Collapse runs of whitespace and lowercase text for stable comparison."""
     return re.sub(r'\s+', ' ', text.strip().lower())
 
 
 def question_hash(question_text: str) -> str:
+    """
+    Return a stable SHA-256 hex digest of the normalised question text.
+    Used for exact-duplicate detection across generation sessions.
+    """
     return hashlib.sha256(normalize_text(question_text).encode()).hexdigest()
 
 
 def _tokenize(text: str) -> set[str]:
+    """
+    Extract a set of lowercase content words from text.
+
+    Strips stop words (common function/auxiliary words) and single/two-letter
+    tokens.  Used by hint_leaks_answer() to compare hint vocabulary against
+    correct answer vocabulary without false positives from common words.
+    """
     words = re.findall(r"[a-z']+", text.lower())
     return {w for w in words if w not in _STOP_WORDS and len(w) > 2}
 
@@ -115,6 +127,31 @@ def validate_single(q: dict, seen_hashes: set[str]) -> str | None:
     return _check_question(q, seen_hashes)
 
 def _check_question(q: dict, seen_hashes: set[str]) -> str | None:
+    """
+    Core validation logic for a single question dict.
+
+    Checks (in order):
+      1. question_text is present and non-empty.
+      2. options is a list with at least 2 items.
+      3. Every option has option_text and is_correct.
+      4. Type-specific rules:
+           rearrange  — all options must be is_correct=True with a contiguous
+                        1-based correct_order; 4–6 options required.
+           mcq_single — exactly 4 options, exactly 1 correct.
+           mcq_multiple — exactly 4 options, at least 1 correct.
+      5. difficulty_level is an integer in [1, 5].
+      6. question_text hash is not in seen_hashes (deduplication).
+      7. hint does not reveal the correct answer (see hint_leaks_answer()).
+
+    Args:
+        q:            Question dict as returned by Gemini (may be malformed).
+        seen_hashes:  Set of SHA-256 hashes of already-accepted question texts.
+                      NOT mutated here — caller adds the hash on acceptance.
+
+    Returns:
+        A human-readable rejection reason string, or None if the question
+        passes all checks.
+    """
     # Required fields
     if not q.get('question_text'):
         return "Missing required field: question_text"
@@ -185,6 +222,23 @@ def validate_questions(
     raw_questions: list[dict],
     seen_hashes: set[str] | None = None,
 ) -> tuple[list[dict], list[dict]]:
+    """
+    Validate a list of raw question dicts from Gemini.
+
+    Iterates through raw_questions, running _check_question() on each.
+    Valid questions are collected in-order; rejected questions have a
+    'rejection_reason' field added to them.
+
+    Args:
+        raw_questions:  Unvalidated question dicts from the LLM response.
+        seen_hashes:    Optional pre-populated set of already-accepted hashes
+                        (e.g. from a previous generation call in the same session).
+                        A new empty set is used if not provided.
+
+    Returns:
+        (valid, rejected) — two lists partitioning raw_questions.
+        The seen_hashes set is mutated in-place with accepted question hashes.
+    """
     seen_hashes = seen_hashes or set()
     valid: list[dict] = []
     rejected: list[dict] = []

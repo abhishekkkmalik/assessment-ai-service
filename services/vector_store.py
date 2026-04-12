@@ -30,6 +30,13 @@ _RETRIEVE_TOP_K = settings.retrieve_top_k
 
 @lru_cache(maxsize=1)
 def _get_qdrant():
+    """
+    Return the process-level QdrantClient singleton (created on first call).
+
+    lru_cache(maxsize=1) ensures only one client instance exists per process.
+    Adds api_key only if settings.qdrant_api_key is non-empty, supporting both
+    unauthenticated local Qdrant and authenticated cloud deployments.
+    """
     from qdrant_client import QdrantClient
     kwargs = {"host": settings.qdrant_host, "port": settings.qdrant_port}
     if settings.qdrant_api_key:
@@ -305,7 +312,16 @@ async def embed_and_store(pdf_id: str, chapter_id: str, pages: list[dict]) -> in
     return len(points)
 
 async def embed_text(text: str) -> list[float]:
-    """Embed a single text using Vertex AI text-embedding-005."""
+    """
+    Embed a single text string using the configured Vertex AI embedding model.
+
+    The model (settings.embedding_model) defaults to
+    text-multilingual-embedding-002 (768 dimensions), which handles
+    Hindi/English code-switching common in CBSE content.
+
+    Returns:
+        A list of 768 float values representing the text embedding.
+    """
     import asyncio
     import vertexai
     from vertexai.language_models import TextEmbeddingModel

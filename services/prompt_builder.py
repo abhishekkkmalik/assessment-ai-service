@@ -195,6 +195,26 @@ MODIFY_TYPE_TASKS = {
 
 
 def build_system_prompt(grade_level: int, subject: str = "", chapter: str = "", board: str = "CBSE") -> str:
+    """
+    Build the system prompt for standard topic-focused MCQ generation.
+
+    Injects the full rule set (mobile formatting, Bloom's taxonomy mapping,
+    difficulty distribution, question types, answer position rules, hint/
+    explanation quality rules, and self-verification checklist).
+
+    Grade calibration: adjusts language complexity guidance based on grade_level
+    (≤5 → concrete/simple, ≤8 → moderate, ≤10 → secondary academic, else → college-prep).
+
+    Args:
+        grade_level: Student grade (1–12).
+        subject:     Optional subject name for curriculum context line.
+        chapter:     Optional chapter title for curriculum context line.
+        board:       Education board (default "CBSE").
+
+    Returns:
+        A multi-paragraph system prompt string ready to be prepended to the
+        combined Gemini prompt.
+    """
     if grade_level <= 5:
         grade_note = "Use concrete, simple language. Short sentences. No jargon."
     elif grade_level <= 8:
@@ -246,6 +266,27 @@ def build_user_prompt(
     topic: str = "",
     existing_question_stems: list[str] | None = None,
 ) -> str:
+    """
+    Build the user prompt for standard topic-focused MCQ generation.
+
+    Embeds the RAG context text and instructs Gemini to generate exactly
+    num_questions questions strictly grounded in that context.  If
+    existing_question_stems is provided, those stems are listed so Gemini
+    avoids repeating already-tested concepts.
+
+    Args:
+        chapter:                  Chapter title.
+        num_questions:            Exact number of questions to request (already
+                                  includes the over-generation buffer).
+        context_text:             Retrieved chapter content from Qdrant (or
+                                  caller-supplied fallback).
+        topic:                    Optional sub-topic focus within the chapter.
+        existing_question_stems:  Optional list of previously asked question
+                                  stems for deduplication.
+
+    Returns:
+        A user-turn prompt string.
+    """
     dedup_section = ""
     if existing_question_stems:
         stems_list = "\n".join(f"  - {s}" for s in existing_question_stems)
@@ -265,6 +306,26 @@ Generate exactly {num_questions} MCQ question(s) focused strictly on the topic "
 
 
 def build_prereq_system_prompt(grade_level: int, subject: str = "", chapter: str = "", board: str = "CBSE") -> str:
+    """
+    Build the system prompt for Previous Knowledge Testing mode.
+
+    Instructs Gemini to generate foundational questions pitched at the prior
+    grade (grade_level - 1) based on its internal curriculum knowledge rather
+    than a supplied chapter excerpt — no RAG context is used in this mode.
+
+    The prompt explicitly identifies the gap-testing goal: check whether the
+    current-grade student already has the prerequisite knowledge needed to
+    study the current chapter.
+
+    Args:
+        grade_level: Current student grade (1–12); prerequisite grade is max(1, grade_level - 1).
+        subject:     Optional subject name.
+        chapter:     Optional chapter title.
+        board:       Education board (default "CBSE").
+
+    Returns:
+        A system prompt string for prerequisite-mode generation.
+    """
     prereq_grade = max(1, grade_level - 1)
 
     if prereq_grade <= 5:
@@ -325,6 +386,22 @@ def build_prereq_user_prompt(
     grade_level: int = 8,
     existing_question_stems: list[str] | None = None,
 ) -> str:
+    """
+    Build the user prompt for Previous Knowledge Testing mode.
+
+    No context_text parameter — Gemini uses its own knowledge of the board
+    curriculum to identify prerequisite concepts from the prior grade.
+
+    Args:
+        chapter:                  Chapter title.
+        num_questions:            Exact number of questions to request.
+        board:                    Education board (default "CBSE").
+        grade_level:              Current student grade; prerequisite grade is max(1, grade_level - 1).
+        existing_question_stems:  Optional deduplication stems.
+
+    Returns:
+        A user-turn prompt string for prerequisite-mode generation.
+    """
     prereq_grade = max(1, grade_level - 1)
 
     dedup_section = ""
@@ -341,6 +418,24 @@ Generate exactly {num_questions} MCQ question(s) that test the foundational know
 
 
 def build_competency_system_prompt(grade_level: int, subject: str = "", chapter: str = "", board: str = "CBSE") -> str:
+    """
+    Build the system prompt for Competency Assessment mode.
+
+    Replaces the standard difficulty distribution rules with
+    _COMPETENCY_DIFFICULTY_RULES, which restrict generation to Bloom's levels
+    4 (Analyze) and 5 (Evaluate/Create) only.  All other rules (mobile
+    formatting, question types, hints, etc.) are identical to the standard
+    system prompt.
+
+    Args:
+        grade_level: Student grade (1–12).
+        subject:     Optional subject name.
+        chapter:     Optional chapter title.
+        board:       Education board (default "CBSE").
+
+    Returns:
+        A system prompt string for competency-mode generation.
+    """
     if grade_level <= 5:
         grade_note = "Use concrete, simple language. Short sentences. No jargon."
     elif grade_level <= 8:
@@ -391,6 +486,22 @@ def build_competency_user_prompt(
     context_text: str,
     existing_question_stems: list[str] | None = None,
 ) -> str:
+    """
+    Build the user prompt for Competency Assessment mode.
+
+    Similar to build_user_prompt() but explicitly instructs Gemini to cover
+    the FULL breadth of the chapter (not a single topic) and to generate
+    only difficulty levels 4–5.
+
+    Args:
+        chapter:                  Chapter title.
+        num_questions:            Exact number of questions to request.
+        context_text:             Full chapter text retrieved via retrieve_full_chapter().
+        existing_question_stems:  Optional deduplication stems.
+
+    Returns:
+        A user-turn prompt string for competency-mode generation.
+    """
     dedup_section = ""
     if existing_question_stems:
         stems_list = "\n".join(f"  - {s}" for s in existing_question_stems)
@@ -437,6 +548,27 @@ def build_modify_user_prompt(
     instruction: str,
     context_text: str = "",
 ) -> str:
+    """
+    Build the user prompt for single-question modification.
+
+    Resolves the task description from MODIFY_TYPE_TASKS for predefined
+    modification types, or uses instruction directly for CUSTOM.  Truncates
+    context_text to _MODIFY_CONTEXT_LIMIT (3000 chars) to prevent Gemini's
+    guided-JSON output from being truncated on long inputs.
+
+    Args:
+        question:          The question dict to modify (image fields already
+                           stripped by the caller).
+        modification_type: One of REPHRASE, INCREASE_DIFFICULTY,
+                           DECREASE_DIFFICULTY, CHANGE_OPTIONS, REGENERATE,
+                           or CUSTOM.
+        instruction:       Free-text instruction used when modification_type
+                           is CUSTOM; ignored otherwise.
+        context_text:      Optional chapter content for correctness verification.
+
+    Returns:
+        A user-turn prompt string.
+    """
     import json
 
     # CUSTOM: use the user's instruction directly.

@@ -1,3 +1,10 @@
+"""
+POST /ai/modify — single MCQ question modification endpoint.
+
+Accepts a question dict and a modification type (REPHRASE, INCREASE_DIFFICULTY,
+DECREASE_DIFFICULTY, CHANGE_OPTIONS, REGENERATE, or CUSTOM with a free-text
+instruction), then returns the Gemini-modified question.
+"""
 import logging
 
 from fastapi import APIRouter, HTTPException
@@ -15,6 +22,37 @@ logger = logging.getLogger("ai_service.modify")
 
 @router.post("/ai/modify", response_model=ModifyResponse)
 async def modify_question(req: ModifyRequest):
+    """
+    Modify a single MCQ question via Gemini 2.5 Flash.
+
+    Pipeline:
+      1. Context retrieval — uses the question's own text as the Qdrant search
+         query (more targeted than the topic/chapter name).  Falls back to
+         req.context_text if no Qdrant chunks are found.
+      2. Prompt building — strips large image fields (image_prompt, image_base64)
+         from the question before sending to Gemini to save tokens.
+      3. LLM modification call — sends system + user prompt to Gemini and parses
+         the returned question JSON.
+      4. Field preservation — restores 'id' and 'question_order' from the original
+         question if Gemini omitted them.
+      5. Normalisation — clears image_prompt if Gemini returned "null" or "", and
+         removes correct_order from non-rearrange question options.
+      6. Finalisation — syncs exp_points with difficulty_level and generates a new
+         diagram via Gemini Image if the question has an image_prompt.
+      7. Validation — runs structural validation; a failure is logged as a warning
+         but never blocks the response (the teacher's explicit change is honoured).
+
+    Args:
+        req: ModifyRequest with session_id, question (original question dict),
+             modification_type, instruction (for CUSTOM type), grade_level,
+             subject, chapter, topic, board, chapter_id, and context_text.
+
+    Returns:
+        ModifyResponse with the modified question dict.
+
+    Raises:
+        HTTPException 502: Gemini call failed.
+    """
     # Use the question text as the Qdrant query — retrieves chunks semantically
     # closest to this specific question, more targeted than topic/chapter name.
     question_query = req.question.get("question_text") or req.topic or req.chapter

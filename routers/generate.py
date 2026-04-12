@@ -1,3 +1,11 @@
+"""
+POST /ai/generate — MCQ generation endpoint.
+
+Three generation modes are dispatched based on req.topic:
+  • Normal          — topic-focused questions grounded in Qdrant RAG context.
+  • Prerequisite    — foundational questions from the prior grade using AI curriculum knowledge (no RAG).
+  • Competency      — higher-order (levels 4–5 only) questions covering the full chapter via RAG.
+"""
 import asyncio
 import uuid
 import logging
@@ -26,8 +34,72 @@ COMPETENCY_TOPIC = "Competency Based Questions"
 
 @router.post("/ai/generate", response_model=GenerateResponse)
 async def generate_assessment(req: GenerateRequest):
+    """
+    Generate a set of MCQ questions for a given chapter/topic.
+
+    Pipeline (7 steps):
+      1. Resolve context & build prompts
+         Selects the appropriate prompt builders and context source based on
+         the generation mode:
+           - Competency mode  (topic == "Competency Based Questions"):
+               Fetches ALL active Qdrant chunks for the chapter via
+               retrieve_full_chapter(), builds competency-level prompts.
+           - Prerequisite mode (topic == "Previous Knowledge Testing"):
+               Skips Qdrant entirely; uses the model's built-in curriculum
+               knowledge about the prior grade's content.
+           - Normal mode (all other topics):
+               Runs hybrid RAG retrieval via resolve_context(), which tries
+               Qdrant first and falls back to req.context_text.
+
+      2. Single generation call
+         Sends the combined system + user prompt to Gemini 2.5 Flash and
+         requests `num_questions + buffer` questions in a single call.
+         The over-generation buffer is `(num_questions - 1) // 5 + 1` —
+         always at least 1 extra, growing by 1 for every 5 questions
+         requested, to absorb expected validation rejections.
+
+      3. Batch fix pass
+         Any questions that fail structural validation (schema, hint leakage,
+         dedup) are collected and sent back to Gemini in a single fix call
+         with per-question fix instructions.  Questions repaired here are
+         added to the valid pool.
+
+      4. Competency filter
+         In competency mode, any question with difficulty_level < 4 is
+         discarded (model sometimes drifts to lower levels despite the prompt).
+
+      5. Trim to requested count
+         The valid pool is sliced to req.num_questions.
+
+      6. Shuffle answer positions
+         Randomises the option order to break the model's natural ordering
+         bias and ensure the correct answer position varies across questions.
+
+      7. Finalise questions (exp_points + image generation)
+         Runs concurrently across all questions:
+           - Syncs exp_points with the question's difficulty_level.
+           - Calls Gemini 3.1 Flash Image to generate image_base64 if the
+             question has an image_prompt.
+
+    Args:
+        req: GenerateRequest with session_id, chapter_id, subject, chapter,
+             topic, board, num_questions, grade_level, context_text, and
+             optional existing_question_stems for deduplication.
+
+    Returns:
+        GenerateResponse with the generated questions, generation_time_ms,
+        rejected_count, and an optional warning if fewer questions than
+        requested could be produced.
+
+    Raises:
+        HTTPException 422: No context available (Qdrant empty, no context_text).
+        HTTPException 502: Gemini call failed.
+    """
     # ── 1. Resolve context + build prompts ──────────────────────────────────
-    _buffer = (req.num_questions - 1) // 5 + 1  # over-generate buffer
+    # Over-generation buffer: always at least +1, growing by 1 per 5 questions
+    # requested (e.g. 1–5 → +1, 6–10 → +2, 11–15 → +3).  Absorbs expected
+    # validation rejections without a second full LLM round-trip.
+    _buffer = (req.num_questions - 1) // 5 + 1
     is_prereq = req.topic.strip().lower() == PREREQUISITE_TOPIC.lower()
     is_competency = req.topic.strip().lower() == COMPETENCY_TOPIC.lower()
 
