@@ -39,6 +39,30 @@ Difficulty ↔ Bloom's Taxonomy mapping (follow strictly):
     Stems: "Which solution is most appropriate...", "Justify...", "What would you recommend..."
 """
 
+_SOURCE_INDEPENDENCE_RULES = """
+Source-independence rules — CRITICAL (applies to ALL fields: question_text, options, hint, explanation):
+  Questions and explanations must read as STANDALONE educational content.
+  The student must NEVER know that a PDF, textbook, or passage was involved.
+
+  FORBIDDEN phrases (any variation of these):
+    • "the text mentions / states / provides / says / explicitly states"
+    • "in activity X.X", "in section X.X", "in exercise X.X"
+    • "table X.X shows / clearly states / indicates"
+    • "the table shows", "consult the table", "refer to the table"
+    • "the passage states", "according to the passage"
+    • "as mentioned in the chapter", "the chapter states"
+    • "as given in the text", "as described above", "the above text"
+    • Any numbered activity, figure, table, or exercise reference (e.g. "Activity 9.2", "Fig. 3.1")
+
+  INSTEAD — write the fact, concept, or data directly into the question or explanation:
+    ✗ "The text states that photosynthesis occurs in the chloroplast."
+    ✓ "Photosynthesis occurs in the chloroplast."
+    ✗ "Table 9.1 shows the boiling points of these liquids."
+    ✓ "The boiling points of these liquids are: water — 100°C, ethanol — 78°C."
+    ✗ "As mentioned in Activity 9.2, the solution turns blue."
+    ✓ "When starch is present, iodine solution turns blue."
+"""
+
 _HINT_RULES = """
 Hint quality rules (ALL must be satisfied — no exceptions):
   1. Must guide the student's thinking process, not give away the answer.
@@ -47,8 +71,9 @@ Hint quality rules (ALL must be satisfied — no exceptions):
   4. Should reference a concept, principle, or process rather than the answer itself.
   5. Must be FULLY SELF-CONTAINED — strictly forbidden to reference:
        • Theorem, Lemma, Corollary, Property, or Rule by number (e.g. "Theorem 6.6", "Rule 2.1")
-       • Textbook pages, chapters, sections, figures, or tables by number
-       • Phrases like "Refer to...", "See page...", "As stated in...", "According to Theorem..."
+       • Textbook pages, chapters, sections, figures, tables, or activities by number
+       • Phrases like "Refer to...", "See page...", "As stated in...", "According to Theorem...",
+         "the text says...", "as mentioned in the chapter..."
      Instead, state the underlying principle or key idea directly in the hint text.
      A student with no textbook must be able to use this hint.
 """
@@ -58,9 +83,10 @@ Explanation quality rules (ALL must be satisfied — no exceptions):
   1. Must clearly justify WHY the correct answer is right and WHY each distractor is wrong.
   2. Must be FULLY SELF-CONTAINED — strictly forbidden to reference:
        • Theorem, Lemma, Corollary, Property, or Rule by number (e.g. "Theorem 6.6")
-       • Textbook pages, chapters, sections, figures, or tables by number
-       • Phrases like "Refer to...", "See page...", "As stated in...", "According to Theorem..."
-     Instead, explain the reasoning and logic inline — never point the student elsewhere.
+       • Textbook pages, chapters, sections, figures, tables, or activities by number
+       • Phrases like "Refer to...", "See page...", "As stated in...", "According to Theorem...",
+         "the text states...", "as shown in the table...", "Activity X.X shows..."
+     Instead, explain the reasoning and logic inline — embed any needed facts directly.
   3. Must use the same mobile-safe formatting rules as all other fields (no LaTeX).
 """
 
@@ -68,9 +94,10 @@ _SELF_VERIFICATION = """
 Self-verification (do this before submitting):
   For each question, verify:
   ✓ Every claim is supported by the provided chapter text
+  ✓ question_text contains NO reference to the source material (no "the text", "activity X", "table X")
+  ✓ hint contains NO reference to the source material, theorem numbers, or page references
+  ✓ explanation contains NO reference to the source material, theorem numbers, or page references
   ✓ Hint passes all hint rules above (no answer tokens)
-  ✓ Hint is self-contained — no theorem numbers, page references, or "Refer to..." phrases
-  ✓ Explanation is self-contained — no theorem numbers, page references, or "Refer to..." phrases
   ✓ All distractors are plausible but clearly wrong to a knowledgeable student
   ✓ Bloom's category matches the stem pattern for the difficulty level
   ✓ No two questions test the same specific fact or concept
@@ -220,6 +247,8 @@ Grade calibration: {grade_note}
 
 {_MOBILE_FORMAT_RULES}
 
+{_SOURCE_INDEPENDENCE_RULES}
+
 {_BLOOM_MAPPING}
 
 {_DIFFICULTY_DISTRIBUTION_RULES}
@@ -299,6 +328,8 @@ Questions must be pitched at Class {prereq_grade} difficulty — not the current
 
 {_MOBILE_FORMAT_RULES}
 
+{_SOURCE_INDEPENDENCE_RULES}
+
 {_BLOOM_MAPPING}
 
 {_DIFFICULTY_DISTRIBUTION_RULES}
@@ -365,6 +396,8 @@ Curriculum context: {context_line}
 Grade calibration: {grade_note}
 
 {_MOBILE_FORMAT_RULES}
+
+{_SOURCE_INDEPENDENCE_RULES}
 
 {_BLOOM_MAPPING}
 
