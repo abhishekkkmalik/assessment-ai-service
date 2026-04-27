@@ -20,6 +20,11 @@ async def finalize_question(
     - Updates exp_points to match current difficulty_level.
     - Calls Gemini 3.1 Flash Image to generate image_base64 if image_prompt is present.
     """
+    # For rearrange questions, sort options by correct_order so the response is in correct sequence
+    if q.get("question_type") == "rearrange":
+        options = q.get("options") or []
+        q["options"] = sorted(options, key=lambda o: o.get("correct_order", 0))
+
     # Keep exp_points in sync with difficulty (modify may change difficulty without updating exp_points)
     diff = q.get("difficulty_level")
     if diff in _EXP_BY_DIFFICULTY:

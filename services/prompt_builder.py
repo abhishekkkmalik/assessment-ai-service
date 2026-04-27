@@ -135,8 +135,11 @@ Question type rules — choose the BEST type for each question based on the cont
                  Use for processes, steps, timelines, or logical sequences.
                  Provide 4–6 items. ALL options must have is_correct=true.
                  Each option MUST have correct_order (1-based integer for its position in correct sequence).
-                 Return options in SCRAMBLED order — NOT in the correct sequence.
+                 Return options in correct sequence order (sorted by correct_order ascending).
                  Question text MUST ask the student to arrange/order the items.
+                 CRITICAL — option_text for each item must describe the step/event/stage directly.
+                 NEVER use labels like "Activity 1.1", "Step 2.3", "Section 4", "Fig. 1.1", or any
+                 numbered reference as the item text. Write the actual content of the step instead.
 """
 
 _DIFFICULTY_DISTRIBUTION_RULES = """
