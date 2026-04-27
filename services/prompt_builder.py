@@ -80,14 +80,15 @@ Hint quality rules (ALL must be satisfied — no exceptions):
 
 _EXPLANATION_RULES = """
 Explanation quality rules (ALL must be satisfied — no exceptions):
-  1. Must clearly justify WHY the correct answer is right and WHY each distractor is wrong.
-  2. Must be FULLY SELF-CONTAINED — strictly forbidden to reference:
+  1. Must be concise — MAXIMUM 300 characters. Stay well within this limit.
+  2. Must clearly justify WHY the correct answer is right and WHY each distractor is wrong.
+  3. Must be FULLY SELF-CONTAINED — strictly forbidden to reference:
        • Theorem, Lemma, Corollary, Property, or Rule by number (e.g. "Theorem 6.6")
        • Textbook pages, chapters, sections, figures, tables, or activities by number
        • Phrases like "Refer to...", "See page...", "As stated in...", "According to Theorem...",
          "the text states...", "as shown in the table...", "Activity X.X shows..."
      Instead, explain the reasoning and logic inline — embed any needed facts directly.
-  3. Must use the same mobile-safe formatting rules as all other fields (no LaTeX).
+  4. Must use the same mobile-safe formatting rules as all other fields (no LaTeX).
 """
 
 _SELF_VERIFICATION = """
