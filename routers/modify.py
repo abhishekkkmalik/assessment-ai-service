@@ -25,9 +25,24 @@ async def modify_question(req: ModifyRequest):
         log_prefix=f"Session {req.session_id}: ",
     )
 
-    # Strip large fields not useful as LLM input before building the prompt
-    _STRIP_FIELDS = {"image_prompt", "image_base64"}
+    # Strip fields not useful as LLM input before building the prompt
+    _STRIP_FIELDS = {
+        "image_prompt", "image_base64", "image",
+        "correct_answers_count", "options_count",
+        "is_hots", "ai_generated", "is_active", "created_by",
+    }
     question_for_prompt = {k: v for k, v in req.question.items() if k not in _STRIP_FIELDS}
+
+    # Clean option dicts — Django's OptionSerializer adds 'question' (FK UUID) and
+    # 'question_text' (the parent question's text) to every option object.
+    # These fields are invisible noise that confuse the AI when it reads the original question.
+    _OPTION_STRIP_FIELDS = {"id", "question", "question_text"}
+    if "options" in question_for_prompt and isinstance(question_for_prompt["options"], list):
+        question_for_prompt["options"] = [
+            {k: v for k, v in opt.items() if k not in _OPTION_STRIP_FIELDS}
+            for opt in question_for_prompt["options"]
+            if isinstance(opt, dict)
+        ]
 
     system_prompt = build_system_prompt(
         grade_level=req.grade_level,
