@@ -10,6 +10,8 @@ from services.prompt_builder import (
     build_system_prompt, build_user_prompt, build_batch_fix_prompt,
     build_prereq_system_prompt, build_prereq_user_prompt,
     build_competency_system_prompt, build_competency_user_prompt,
+    build_comprehension_system_prompt, build_comprehension_user_prompt,
+    build_grammar_system_prompt, build_grammar_user_prompt,
 )
 from services.mcq_validator import (
     validate_questions, validate_single, question_hash, build_fix_instruction,
@@ -22,6 +24,8 @@ logger = logging.getLogger("ai_service.generate")
 
 PREREQUISITE_TOPIC = "Previous Knowledge Testing"
 COMPETENCY_TOPIC = "Competency Based Questions"
+COMPREHENSION_TOPIC = "Comprehension Passage"
+GRAMMAR_TOPIC = "English Grammar"
 
 
 @router.post("/ai/generate", response_model=GenerateResponse)
@@ -30,8 +34,41 @@ async def generate_assessment(req: GenerateRequest):
     _buffer = (req.num_questions - 1) // 5 + 1  # over-generate buffer
     is_prereq = req.topic.strip().lower() == PREREQUISITE_TOPIC.lower()
     is_competency = req.topic.strip().lower() == COMPETENCY_TOPIC.lower()
+    is_comprehension = req.topic.strip().lower() == COMPREHENSION_TOPIC.lower()
+    is_grammar = req.topic.strip().lower() == GRAMMAR_TOPIC.lower()
 
-    if is_competency:
+    if is_grammar:
+        logger.info(f"Session {req.session_id}: English grammar mode (grade {req.grade_level})")
+        system_prompt = build_grammar_system_prompt(
+            grade_level=req.grade_level,
+            subject=req.subject,
+            chapter=req.chapter,
+            board=req.board,
+        )
+        user_prompt = build_grammar_user_prompt(
+            chapter=req.chapter,
+            num_questions=req.num_questions + _buffer,
+            board=req.board,
+            grade_level=req.grade_level,
+            topic=req.topic,
+            existing_question_stems=req.existing_question_stems or None,
+        )
+    elif is_comprehension:
+        logger.info(f"Session {req.session_id}: comprehension passage mode — AI generates passage (grade {req.grade_level})")
+        system_prompt = build_comprehension_system_prompt(
+            grade_level=req.grade_level,
+            subject=req.subject,
+            chapter=req.chapter,
+            board=req.board,
+        )
+        user_prompt = build_comprehension_user_prompt(
+            chapter=req.chapter,
+            num_questions=req.num_questions + _buffer,
+            board=req.board,
+            grade_level=req.grade_level,
+            existing_question_stems=req.existing_question_stems or None,
+        )
+    elif is_competency:
         logger.info(f"Session {req.session_id}: competency assessment mode — full chapter, levels 4–5 only")
         context_text = await retrieve_full_chapter(chapter_id=req.chapter_id)
         if not context_text:

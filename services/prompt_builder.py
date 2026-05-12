@@ -445,6 +445,234 @@ Chapter content (use ONLY the information below to create questions):
 Generate exactly {num_questions} higher-order MCQ question(s) covering the FULL breadth of this chapter. Every question must be difficulty level 4 (Analyze) or 5 (Evaluate/Create) — do NOT generate any level 1, 2, or 3 questions. Questions must require the student to analyse relationships, evaluate arguments, or apply concepts in novel ways — not recall facts. Mix question types (mcq_single, mcq_multiple, rearrange) where appropriate. Return all questions as a JSON array."""
 
 
+_COMPREHENSION_PASSAGE_RULES = """
+Comprehension passage rules — this is a reading comprehension assessment:
+
+  PASSAGE EMBEDDING (CRITICAL — no exceptions):
+  • Every question_text MUST begin with the FULL passage, formatted exactly like this:
+
+      Read the following passage carefully:
+
+      [full passage text here — same passage, word for word, in every question]
+
+      [Actual question stem here]
+
+  • The passage must appear identically in ALL questions — do NOT shorten, summarise, or alter it.
+  • The actual question stem comes AFTER the passage, separated by a blank line.
+
+  PASSAGE QUALITY:
+  • The passage must be approximately 200 words — not shorter, not significantly longer.
+  • Write in clear, flowing prose appropriate for the grade level.
+  • The passage must be self-contained and interesting — a short story, biography excerpt,
+    nature description, historical anecdote, or informational paragraph.
+
+  QUESTION COVERAGE — cover a balanced mix across the question set:
+      - Specific detail    : facts directly stated in the passage
+      - Inference          : conclusions drawn from implied or unstated meaning
+      - Vocabulary in context : meaning of a word/phrase as used in the passage
+      - Main idea / theme  : what the passage is primarily about
+      - Tone / mood / author's purpose : the writer's attitude or intent
+      - Title suggestion   : best title that captures the passage's central theme
+  • Questions SHOULD naturally reference the passage:
+      "According to the passage...", "The passage suggests...", "In the context of the passage..."
+  • Do NOT ask questions that can be answered without reading the passage.
+  • Do NOT test grammar rules or language conventions — focus only on comprehension.
+"""
+
+_COMPREHENSION_SELF_VERIFICATION = """
+Self-verification (do this before submitting):
+  For each question, verify:
+  ✓ question_text starts with "Read the following passage carefully:" followed by the FULL passage
+  ✓ The full passage (~200 words) is embedded identically in every question_text
+  ✓ The actual question stem appears AFTER the passage
+  ✓ The answer can be found in or clearly inferred from the passage
+  ✓ hint guides thinking without giving away the answer
+  ✓ explanation cites the relevant part of the passage that justifies the answer
+  ✓ All distractors are plausible but clearly wrong to a careful reader
+  ✓ No two questions test the exact same sentence or detail
+  If any check fails — fix the question before submitting.
+"""
+
+
+_GRAMMAR_RULES = """
+Grammar assessment rules — this is an English grammar assessment:
+  • Questions must test practical grammar knowledge using example sentences.
+  • Cover a mix of grammar skills appropriate for the grade level:
+      - Fill in the blank   : choose the correct word/form to complete a sentence
+      - Error detection     : identify the grammatically incorrect part of a sentence
+      - Correct form        : choose the right tense, article, preposition, or conjunction
+      - Sentence correction : select the correctly written version of a sentence
+      - Parts of speech     : identify nouns, verbs, adjectives, adverbs, etc.
+      - Voice / Speech      : active/passive voice or direct/indirect speech transformation
+  • Every question must include a clear example sentence or context.
+  • Distractors must be grammatically plausible — common errors students actually make.
+  • Do NOT ask theoretical definitions ("What is a noun?") — test application only.
+  • Do NOT reference any textbook, chapter, or external source.
+"""
+
+_GRAMMAR_SELF_VERIFICATION = """
+Self-verification (do this before submitting):
+  For each question, verify:
+  ✓ The question tests grammar application, not rote definition recall
+  ✓ The example sentence is clear and unambiguous
+  ✓ Exactly one option is grammatically correct (for mcq_single)
+  ✓ Distractors reflect real grammar mistakes students make
+  ✓ hint points to the grammar rule without giving away the answer
+  ✓ explanation names the grammar rule and explains why the correct option applies
+  ✓ No two questions test the exact same rule in the exact same way
+  If any check fails — fix the question before submitting.
+"""
+
+
+def build_grammar_system_prompt(grade_level: int, subject: str = "", chapter: str = "", board: str = "CBSE") -> str:
+    if grade_level <= 5:
+        grade_note = "Use simple sentences. Focus on basic grammar: nouns, verbs, tenses, articles."
+    elif grade_level <= 8:
+        grade_note = "Use moderate complexity. Cover tenses, voice, conjunctions, prepositions, reported speech."
+    elif grade_level <= 10:
+        grade_note = "Use complex sentences. Cover all major grammar topics including clauses, modals, and transformations."
+    else:
+        grade_note = "Use advanced grammar. Cover nuanced usage, idiomatic expressions, and stylistic correctness."
+
+    parts = [f"Board: {board}", f"Grade: {grade_level}"]
+    if subject:
+        parts.append(f"Subject: {subject}")
+    if chapter:
+        parts.append(f"Chapter: {chapter}")
+    context_line = " | ".join(parts)
+
+    return f"""You are an expert English grammar assessment designer with deep knowledge of the {board} curriculum.
+
+Your task is to generate MCQs that test a student's practical understanding and application of English grammar rules.
+
+Curriculum context: {context_line}
+Grade calibration: {grade_note}
+
+{_MOBILE_FORMAT_RULES}
+
+{_GRAMMAR_RULES}
+
+{_BLOOM_MAPPING}
+
+{_DIFFICULTY_DISTRIBUTION_RULES}
+
+{_QUESTION_TYPE_RULES}
+
+{_ANSWER_POSITION_RULES}
+
+{_HINT_RULES}
+
+{_EXPLANATION_RULES}
+
+{_GRAMMAR_SELF_VERIFICATION}
+
+Output format: return your response as structured JSON matching the provided schema. No markdown, no code fences, no plain text."""
+
+
+def build_grammar_user_prompt(
+    chapter: str,
+    num_questions: int,
+    board: str = "CBSE",
+    grade_level: int = 8,
+    topic: str = "",
+    existing_question_stems: list[str] | None = None,
+) -> str:
+    dedup_section = ""
+    if existing_question_stems:
+        stems_list = "\n".join(f"  - {s}" for s in existing_question_stems)
+        dedup_section = f"\nAlready-asked questions (do NOT repeat these):\n{stems_list}\n"
+
+    topic_line = f"\nGrammar Topic (focus on this): {topic}" if topic else ""
+
+    return f"""Chapter: {chapter}
+Assessment Type: English Grammar
+Board: {board} | Grade: {grade_level}{topic_line}
+Number of questions to generate: {num_questions}
+{dedup_section}
+Generate exactly {num_questions} grammar MCQ question(s) based on your knowledge of the {board} Class {grade_level} English grammar curriculum. Use a mix of question formats: fill in the blank, error detection, correct form selection, sentence correction. Every question must include a clear example sentence. Do not ask for definitions — test application only. Mix question types (mcq_single, mcq_multiple) where appropriate. Return all questions as a JSON array."""
+
+
+def build_comprehension_system_prompt(grade_level: int, subject: str = "", chapter: str = "", board: str = "CBSE") -> str:
+    if grade_level <= 5:
+        grade_note = "Use concrete, simple language. Short sentences. No jargon."
+    elif grade_level <= 8:
+        grade_note = "Use moderate academic language. Some subject-specific vocabulary is fine."
+    elif grade_level <= 10:
+        grade_note = "Use academic language appropriate for secondary school students."
+    else:
+        grade_note = "Use college-preparatory academic language with full subject terminology."
+
+    parts = [f"Board: {board}", f"Grade: {grade_level}"]
+    if subject:
+        parts.append(f"Subject: {subject}")
+    if chapter:
+        parts.append(f"Chapter: {chapter}")
+    context_line = " | ".join(parts)
+
+    return f"""You are an expert educational assessment designer specialising in English reading comprehension.
+
+Your task is to generate MCQs that test a student's ability to read and understand a given passage.
+
+Curriculum context: {context_line}
+Grade calibration: {grade_note}
+
+{_MOBILE_FORMAT_RULES}
+
+{_COMPREHENSION_PASSAGE_RULES}
+
+{_BLOOM_MAPPING}
+
+{_DIFFICULTY_DISTRIBUTION_RULES}
+
+{_QUESTION_TYPE_RULES}
+
+{_ANSWER_POSITION_RULES}
+
+{_HINT_RULES}
+
+{_EXPLANATION_RULES}
+
+{_COMPREHENSION_SELF_VERIFICATION}
+
+Output format: return your response as structured JSON matching the provided schema. No markdown, no code fences, no plain text."""
+
+
+def build_comprehension_user_prompt(
+    chapter: str,
+    num_questions: int,
+    board: str = "CBSE",
+    grade_level: int = 8,
+    existing_question_stems: list[str] | None = None,
+) -> str:
+    dedup_section = ""
+    if existing_question_stems:
+        stems_list = "\n".join(f"  - {s}" for s in existing_question_stems)
+        dedup_section = f"\nAlready-asked questions (do NOT repeat these):\n{stems_list}\n"
+
+    return f"""Chapter: {chapter}
+Assessment Type: Comprehension Passage
+Board: {board} | Grade: {grade_level}
+Number of questions to generate: {num_questions}
+{dedup_section}
+STEP 1 — Write a passage:
+  • Compose an original passage of approximately 200 words suitable for a Class {grade_level} {board} student.
+  • The passage should relate to the theme or topic of "{chapter}" where possible.
+  • It may be a short story, biographical excerpt, nature description, historical anecdote, or informational paragraph.
+  • The passage must be engaging, self-contained, and written in clear prose.
+
+STEP 2 — Generate questions from that passage:
+  Generate exactly {num_questions} MCQ question(s) based strictly on the passage you wrote.
+
+CRITICAL — question_text format for EVERY question:
+  Read the following passage carefully:
+
+  [your full ~200-word passage — identical word for word in every question]
+
+  [question stem]
+
+Cover a mix of comprehension skills: specific detail, inference, vocabulary in context, main idea, tone/author's purpose. Use mcq_single for most questions; use mcq_multiple only when multiple aspects are genuinely correct. Do not use rearrange type. Return all questions as a JSON array."""
+
+
 def build_batch_fix_prompt(items: list[dict]) -> str:
     """
     Build a prompt to fix all rejected questions in a single LLM call.
