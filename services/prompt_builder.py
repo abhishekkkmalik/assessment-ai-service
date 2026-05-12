@@ -455,10 +455,13 @@ Comprehension passage rules — this is a reading comprehension assessment:
 
       [full passage text here — same passage, word for word, in every question]
 
+      ──────────────────────────────────────
+
       [Actual question stem here]
 
+  • The separator line (──────────────────────────────────────) MUST appear between the passage and the question stem in every question — this helps the display layer distinguish passage from question without any extra logic.
   • The passage must appear identically in ALL questions — do NOT shorten, summarise, or alter it.
-  • The actual question stem comes AFTER the passage, separated by a blank line.
+  • The actual question stem comes AFTER the separator line.
 
   PASSAGE QUALITY:
   • The passage must be approximately 200 words — not shorter, not significantly longer.
@@ -467,12 +470,16 @@ Comprehension passage rules — this is a reading comprehension assessment:
     nature description, historical anecdote, or informational paragraph.
 
   QUESTION COVERAGE — cover a balanced mix across the question set:
-      - Specific detail    : facts directly stated in the passage
-      - Inference          : conclusions drawn from implied or unstated meaning
+      - Specific detail       : facts directly stated in the passage
+      - Inference             : conclusions drawn from implied or unstated meaning
       - Vocabulary in context : meaning of a word/phrase as used in the passage
-      - Main idea / theme  : what the passage is primarily about
+      - Main idea / theme     : what the passage is primarily about
       - Tone / mood / author's purpose : the writer's attitude or intent
-      - Title suggestion   : best title that captures the passage's central theme
+      - Title suggestion      : best title that captures the passage's central theme
+      - Complete the sentence : fill-in-the-blank using mcq_single — put ___ in the
+                                question stem and provide 4 word/phrase options
+                                e.g. "The old man was known for his ___."
+
   • Questions SHOULD naturally reference the passage:
       "According to the passage...", "The passage suggests...", "In the context of the passage..."
   • Do NOT ask questions that can be answered without reading the passage.
@@ -510,6 +517,36 @@ Grammar assessment rules — this is an English grammar assessment:
   • Do NOT reference any textbook, chapter, or external source.
 """
 
+_GRAMMAR_ADVANCED_RULES = """
+Advanced grammar question types — REQUIRED for Class 9 and 10 (mix these into the question set):
+
+  1. EDIT (Error Editing):
+     • Show a sentence containing ONE grammatical error (tense, modal, subject-verb agreement, etc.).
+     • Use mcq_single. Ask the student to identify the error and its correction.
+     • Format: "Identify the error and its correction: 'She go to school every day.'"
+     • Options: A) go → goes  B) go → went  C) go → going  D) No error
+     • Exactly one option gives the correct word + its replacement.
+
+  2. OMISSIONS:
+     • Show a sentence or short paragraph with ONE word omitted, marked by /\\ or a blank ___.
+     • Use mcq_single. Student selects the missing word/phrase that best fills the gap.
+     • Format: "Fill in the missing word: 'He was tired ___ he kept working.'"
+     • Options: four grammatically plausible words/phrases, only one correct.
+
+  3. REPORTED SPEECH:
+     • Give a direct speech sentence and ask for the correct indirect (reported) form, or vice versa.
+     • Use mcq_single.
+     • Format: "Change to reported speech: Ram said, 'I am very hungry.'"
+     • Options: four reported speech versions with subtle tense/pronoun differences.
+     • Only one option correctly applies all reported speech transformation rules.
+
+  4. SENTENCE REORDERING:
+     • Give jumbled words or sentence parts that must be arranged into a correct, meaningful sentence.
+     • Use rearrange question type. Each option is one word or phrase segment.
+     • All options must have is_correct=true with correct_order assigned (1-based).
+     • Format: question_text asks the student to arrange the given words/phrases into a sentence.
+"""
+
 _GRAMMAR_SELF_VERIFICATION = """
 Self-verification (do this before submitting):
   For each question, verify:
@@ -524,15 +561,63 @@ Self-verification (do this before submitting):
 """
 
 
-def build_grammar_system_prompt(grade_level: int, subject: str = "", chapter: str = "", board: str = "CBSE") -> str:
-    if grade_level <= 5:
-        grade_note = "Use simple sentences. Focus on basic grammar: nouns, verbs, tenses, articles."
-    elif grade_level <= 8:
-        grade_note = "Use moderate complexity. Cover tenses, voice, conjunctions, prepositions, reported speech."
-    elif grade_level <= 10:
-        grade_note = "Use complex sentences. Cover all major grammar topics including clauses, modals, and transformations."
+def _grammar_grade_curriculum(grade_level: int) -> str:
+    if grade_level <= 2:
+        return """Grade 1–2 grammar scope:
+  Topics   : Common nouns, pronouns (I/we/he/she/they), simple present tense, articles (a/an),
+              capital letters, full stops, question marks, simple positive sentences.
+  Formats  : Fill in the blank, choose the correct word (2–4 simple options).
+  Sentences: Very short (5–8 words), everyday vocabulary only.
+  Avoid    : Multi-clause sentences, modals, passive voice, tenses other than simple present."""
+    elif grade_level <= 4:
+        return """Grade 3–4 grammar scope:
+  Topics   : Common & proper nouns, pronouns, simple present/past/future tense, articles (a/an/the),
+              basic adjectives, simple prepositions (in/on/at/under), conjunctions (and/but/or).
+  Formats  : Fill in the blank, choose the correct form, sentence correction (single error).
+  Sentences: Short to medium (8–12 words), familiar vocabulary.
+  Avoid    : Perfect tenses, passive voice, reported speech, modals."""
+    elif grade_level == 5:
+        return """Grade 5 grammar scope:
+  Topics   : All basic tenses (simple present/past/future), articles, adjectives (degrees of comparison),
+              adverbs, prepositions, conjunctions, negatives, question formation, subject-verb agreement.
+  Formats  : Fill in the blank, choose the correct form, error spotting, sentence correction.
+  Sentences: Medium length (10–15 words), school-level vocabulary.
+  Avoid    : Perfect continuous tenses, passive voice, reported speech, complex modals."""
+    elif grade_level <= 7:
+        return """Grade 6–7 grammar scope:
+  Topics   : All simple + continuous tenses, perfect tenses (introduction), modals (can/could/may/might/will/would/shall/should),
+              active/passive voice (simple cases), degrees of comparison, conjunctions, prepositions,
+              subject-verb agreement, basic reported speech (statements only).
+  Formats  : Fill in the blank, choose the correct form/tense/modal, error spotting,
+              sentence correction, active ↔ passive transformation (simple cases).
+  Sentences: Medium to complex (12–18 words), age-appropriate vocabulary.
+  Avoid    : Perfect continuous passive, advanced conditional sentences."""
+    elif grade_level == 8:
+        return """Grade 8 grammar scope:
+  Topics   : All tenses including perfect continuous, all modals, active/passive voice (all tenses),
+              direct/indirect speech (statements, questions, commands), conditional sentences (type 1 & 2),
+              phrases and clauses, degrees of comparison, relative pronouns.
+  Formats  : Fill in the blank, choose the correct form, error spotting, sentence correction,
+              active ↔ passive transformation, direct ↔ indirect speech conversion.
+  Sentences: Complex (15–20 words), varied vocabulary appropriate for Class 8.
+  Avoid    : Type 3 conditionals, mixed conditionals, advanced stylistic questions."""
     else:
-        grade_note = "Use advanced grammar. Cover nuanced usage, idiomatic expressions, and stylistic correctness."
+        return ""  # Grade 9-10 handled by _GRAMMAR_ADVANCED_RULES
+
+
+def build_grammar_system_prompt(grade_level: int, subject: str = "", chapter: str = "", board: str = "CBSE") -> str:
+    if grade_level <= 2:
+        grade_note = "Use very simple, everyday language. Sentences must be short. No jargon."
+    elif grade_level <= 4:
+        grade_note = "Use simple language with familiar vocabulary. Sentences should be short to medium."
+    elif grade_level <= 6:
+        grade_note = "Use clear, school-level language. Moderate sentence complexity."
+    elif grade_level <= 8:
+        grade_note = "Use moderately complex sentences with age-appropriate vocabulary."
+    elif grade_level <= 10:
+        grade_note = "Use complex sentences with full secondary-school grammar range."
+    else:
+        grade_note = "Use advanced grammar with nuanced usage and stylistic correctness."
 
     parts = [f"Board: {board}", f"Grade: {grade_level}"]
     if subject:
@@ -541,6 +626,9 @@ def build_grammar_system_prompt(grade_level: int, subject: str = "", chapter: st
         parts.append(f"Chapter: {chapter}")
     context_line = " | ".join(parts)
 
+    grade_curriculum = _grammar_grade_curriculum(grade_level)
+    advanced_rules = _GRAMMAR_ADVANCED_RULES if grade_level in (9, 10) else ""
+
     return f"""You are an expert English grammar assessment designer with deep knowledge of the {board} curriculum.
 
 Your task is to generate MCQs that test a student's practical understanding and application of English grammar rules.
@@ -548,10 +636,11 @@ Your task is to generate MCQs that test a student's practical understanding and 
 Curriculum context: {context_line}
 Grade calibration: {grade_note}
 
+{grade_curriculum}
 {_MOBILE_FORMAT_RULES}
 
 {_GRAMMAR_RULES}
-
+{advanced_rules}
 {_BLOOM_MAPPING}
 
 {_DIFFICULTY_DISTRIBUTION_RULES}
@@ -667,6 +756,8 @@ CRITICAL — question_text format for EVERY question:
   Read the following passage carefully:
 
   [your full ~200-word passage — identical word for word in every question]
+
+  ──────────────────────────────────────
 
   [question stem]
 
