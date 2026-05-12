@@ -811,9 +811,40 @@ def build_modify_user_prompt(
             f"\n\nChapter content (verify correctness against this):\n---\n{truncated}\n---"
         )
 
+    original_type = question.get("question_type", "mcq_single")
+
+    _TYPE_RULES = {
+        "mcq_single": (
+            "question_type MUST be \"mcq_single\". "
+            "Provide EXACTLY 4 options. "
+            "EXACTLY 1 option must have is_correct=true. All others must have is_correct=false. "
+            "Do NOT make all options correct. Do NOT add correct_order to any option."
+        ),
+        "mcq_multiple": (
+            "question_type MUST be \"mcq_multiple\". "
+            "Provide EXACTLY 4 options. "
+            "2 OR MORE options must have is_correct=true. "
+            "Question text MUST include 'Select all that apply.' "
+            "Do NOT add correct_order to any option."
+        ),
+        "rearrange": (
+            "question_type MUST be \"rearrange\". "
+            "Provide 4 to 6 options. "
+            "ALL options must have is_correct=true. "
+            "EVERY option MUST have a correct_order integer (1-based, unique, contiguous from 1 to N). "
+            "Return options sorted by correct_order ascending. "
+            "Question text MUST ask the student to arrange or order the items."
+        ),
+    }
+    type_rule = _TYPE_RULES.get(original_type, _TYPE_RULES["mcq_single"])
+
     return (
         f"Modification task: {task}\n\n"
         f"Original question:\n{json.dumps(question, indent=2)}"
         f"{context_section}\n\n"
-        "Apply the modification and return the updated question as a JSON object."
+        f"STRUCTURAL RULES — you MUST follow these exactly (no exceptions):\n"
+        f"  • {type_rule}\n"
+        f"  • Do NOT change question_type — it must remain \"{original_type}\".\n"
+        f"  • Do NOT change difficulty_level unless the task explicitly requires it.\n"
+        "Apply ONLY the modification described above. Return the updated question as a JSON object."
     )
