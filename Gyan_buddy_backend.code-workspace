@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"name": "AI Service (FastAPI)",
+			"path": "."
+		},
+		{
+			"name": "Backend (Django)",
+			"path": "../gyaan_buddy_backend"
+		},
+		{
+			"name": "Frontend (React)",
+			"path": "../../Web_App_React/gyaan_buddy_combined"
+		}
+	],
+	"settings": {}
+}

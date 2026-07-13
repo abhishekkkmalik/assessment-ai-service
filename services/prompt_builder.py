@@ -848,3 +848,114 @@ def build_modify_user_prompt(
         f"  • Do NOT change difficulty_level unless the task explicitly requires it.\n"
         "Apply ONLY the modification described above. Return the updated question as a JSON object."
     )
+
+
+# ── Lab Manual / Science Experiment prompts ───────────────────────────────────
+
+_LAB_MANUAL_RULES = """
+Lab manual assessment rules — this is a science experiment assessment:
+  • Questions must test understanding of the EXPERIMENT — not just standalone textbook theory.
+  • Cover all sections of the lab manual across the question set:
+      - Aim / Purpose       : What is the aim of this experiment?
+      - Apparatus           : Identify equipment used; what is each item's role?
+      - Safety Precautions  : Use mcq_multiple — multiple precautions may apply.
+      - Theory / Concept    : Test understanding of formulas, principles, and laws used.
+      - Procedure Steps     : Use rearrange — order the experimental steps correctly.
+      - Observation         : What is observed when a specific variable changes?
+      - Data Interpretation : What does the slope / graph / table value represent?
+      - Conclusion          : What can be concluded from the experimental results?
+      - Error Analysis      : Use mcq_multiple — multiple sources of error may apply.
+      - Extension / Application: Apply the concept to a novel situation.
+
+  • Procedure rearrange questions MUST write each step's actual content as option_text —
+    NEVER use labels like "Step 1", "Step 2", "Step A", or any numbered reference.
+
+  • Allowed in question_text: "in this experiment", "using the apparatus", "during the experiment".
+  • STILL FORBIDDEN: "the text says", "the manual states", "as mentioned above", "refer to page X",
+    "as shown in Table X.X", "according to the manual".
+"""
+
+_LAB_MANUAL_SELF_VERIFICATION = """
+Self-verification for lab manual questions (do this before submitting):
+  For each question, verify:
+  ✓ Question tests experiment understanding — not pure rote recall of a definition
+  ✓ Correct answer is clearly supported by the experiment content provided
+  ✓ hint guides thinking without revealing the answer or referencing the manual
+  ✓ explanation justifies the correct answer and why each distractor is wrong
+  ✓ rearrange questions: all options have is_correct=true and a unique correct_order
+  ✓ No two questions test the exact same step, observation, or fact
+  ✓ No reference to page numbers, text sections, or "the manual says"
+  If any check fails — fix the question before submitting.
+"""
+
+
+def build_lab_manual_system_prompt(
+    grade_level: int, subject: str = "", chapter: str = "", board: str = "CBSE"
+) -> str:
+    if grade_level <= 5:
+        grade_note = "Use concrete, simple language. Short sentences. No jargon."
+    elif grade_level <= 8:
+        grade_note = "Use moderate academic language. Some subject-specific vocabulary is fine."
+    elif grade_level <= 10:
+        grade_note = "Use academic language appropriate for secondary school students."
+    else:
+        grade_note = "Use college-preparatory academic language with full subject terminology."
+
+    parts = [f"Board: {board}", f"Grade: {grade_level}"]
+    if subject:
+        parts.append(f"Subject: {subject}")
+    if chapter:
+        parts.append(f"Chapter/Experiment: {chapter}")
+    context_line = " | ".join(parts)
+
+    return f"""You are an expert educational assessment designer specialising in science laboratory experiment assessment.
+
+Your task is to generate MCQs that test a student's understanding of a science experiment — covering aim, apparatus, theory, procedure, observations, data interpretation, conclusions, error analysis, and extensions.
+
+Curriculum context: {context_line}
+Grade calibration: {grade_note}
+
+{_MOBILE_FORMAT_RULES}
+
+{_LAB_MANUAL_RULES}
+
+{_BLOOM_MAPPING}
+
+{_DIFFICULTY_DISTRIBUTION_RULES}
+
+{_QUESTION_TYPE_RULES}
+
+{_ANSWER_POSITION_RULES}
+
+{_HINT_RULES}
+
+{_EXPLANATION_RULES}
+
+{_IMAGE_RULES}
+
+{_LAB_MANUAL_SELF_VERIFICATION}
+
+Output format: return your response as structured JSON matching the provided schema. No markdown, no code fences, no plain text."""
+
+
+def build_lab_manual_user_prompt(
+    chapter: str,
+    num_questions: int,
+    context_text: str,
+    existing_question_stems: list[str] | None = None,
+) -> str:
+    dedup_section = ""
+    if existing_question_stems:
+        stems_list = "\n".join(f"  - {s}" for s in existing_question_stems)
+        dedup_section = f"\nAlready-asked questions (do NOT repeat these):\n{stems_list}\n"
+
+    return f"""Experiment: {chapter}
+Assessment Type: Lab Manual / Science Experiment
+Number of questions to generate: {num_questions}
+{dedup_section}
+Experiment content (use ONLY the information below to create questions):
+---
+{context_text}
+---
+
+Generate exactly {num_questions} MCQ question(s) covering the FULL breadth of this experiment. Distribute questions across: aim, apparatus, safety, theory, procedure steps, observations, data interpretation, conclusion, and error analysis. Use rearrange for procedure step ordering, mcq_multiple for safety/error questions, and mcq_single for all others. Where a diagram genuinely aids a question, set image_prompt. Vary difficulty levels based on the cognitive demand of each section. Return all questions as a JSON array."""
